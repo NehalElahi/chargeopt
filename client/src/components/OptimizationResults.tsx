@@ -1,4 +1,4 @@
-import { type DecisionOutcome } from "@shared/routes";
+import { type DecisionOutcome } from "@shared/schema";
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend

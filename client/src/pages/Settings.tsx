@@ -1,25 +1,27 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertUserSchema } from "@shared/schema";
-import { useUser, useUpdateUser } from "@/hooks/use-user";
+import { useProfile, useUpdateProfile, useCarModels } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Save, Sun, Battery, Car, MapPin } from "lucide-react";
+import { Loader2, Save, Sun, Battery, Car, MapPin, Navigation } from "lucide-react";
 import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
 
-// Create a schema that coerces strings to numbers for form inputs
-const formSchema = insertUserSchema.omit({ password: true, username: true }).extend({
+const formSchema = z.object({
   latitude: z.coerce.number(),
   longitude: z.coerce.number(),
   systemKw: z.coerce.number(),
   panelDerate: z.coerce.number(),
+  evCarModelId: z.coerce.number().nullable().optional(),
   evCapacityKwh: z.coerce.number(),
   evMaxChargeKw: z.coerce.number(),
+  hasHomeBattery: z.boolean(),
   homeBatteryCapacityKwh: z.coerce.number(),
   homeBatteryMaxChargeKw: z.coerce.number(),
   homeBatteryMaxDischargeKw: z.coerce.number(),
@@ -28,8 +30,11 @@ const formSchema = insertUserSchema.omit({ password: true, username: true }).ext
 type FormValues = z.infer<typeof formSchema>;
 
 export default function Settings() {
-  const { data: user, isLoading } = useUser();
-  const { mutate: updateUser, isPending: isSaving } = useUpdateUser();
+  const { data: profile, isLoading } = useProfile();
+  const { mutate: updateProfile, isPending: isSaving } = useUpdateProfile();
+  const { data: carModels, isLoading: carsLoading } = useCarModels();
+  const { toast } = useToast();
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -38,6 +43,7 @@ export default function Settings() {
       longitude: -122.4194,
       systemKw: 5.0,
       panelDerate: 0.85,
+      evCarModelId: null,
       evCapacityKwh: 60.0,
       evMaxChargeKw: 7.0,
       hasHomeBattery: false,
@@ -47,26 +53,61 @@ export default function Settings() {
     },
   });
 
-  // Load user data into form
   useEffect(() => {
-    if (user) {
+    if (profile) {
       form.reset({
-        latitude: user.latitude || 37.7749,
-        longitude: user.longitude || -122.4194,
-        systemKw: user.systemKw || 5.0,
-        panelDerate: user.panelDerate || 0.85,
-        evCapacityKwh: user.evCapacityKwh || 60.0,
-        evMaxChargeKw: user.evMaxChargeKw || 7.0,
-        hasHomeBattery: user.hasHomeBattery || false,
-        homeBatteryCapacityKwh: user.homeBatteryCapacityKwh || 13.5,
-        homeBatteryMaxChargeKw: user.homeBatteryMaxChargeKw || 5.0,
-        homeBatteryMaxDischargeKw: user.homeBatteryMaxDischargeKw || 5.0,
+        latitude: profile.latitude || 37.7749,
+        longitude: profile.longitude || -122.4194,
+        systemKw: profile.systemKw || 5.0,
+        panelDerate: profile.panelDerate || 0.85,
+        evCarModelId: profile.evCarModelId || null,
+        evCapacityKwh: profile.evCapacityKwh || 60.0,
+        evMaxChargeKw: profile.evMaxChargeKw || 7.0,
+        hasHomeBattery: profile.hasHomeBattery || false,
+        homeBatteryCapacityKwh: profile.homeBatteryCapacityKwh || 13.5,
+        homeBatteryMaxChargeKw: profile.homeBatteryMaxChargeKw || 5.0,
+        homeBatteryMaxDischargeKw: profile.homeBatteryMaxDischargeKw || 5.0,
       });
     }
-  }, [user, form]);
+  }, [profile, form]);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "Not Supported", description: "Geolocation is not supported by your browser.", variant: "destructive" });
+      return;
+    }
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        form.setValue("latitude", Number(position.coords.latitude.toFixed(4)));
+        form.setValue("longitude", Number(position.coords.longitude.toFixed(4)));
+        setDetectingLocation(false);
+        toast({ title: "Location Detected", description: "Your coordinates have been updated." });
+      },
+      (error) => {
+        setDetectingLocation(false);
+        toast({ title: "Location Error", description: error.message, variant: "destructive" });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleCarModelSelect = (value: string) => {
+    if (value === "custom") {
+      form.setValue("evCarModelId", null);
+      return;
+    }
+    const modelId = parseInt(value);
+    const model = (carModels || []).find((m: any) => m.id === modelId);
+    if (model) {
+      form.setValue("evCarModelId", model.id);
+      form.setValue("evCapacityKwh", model.batteryCapacityKwh);
+      form.setValue("evMaxChargeKw", model.maxChargeKw);
+    }
+  };
 
   const onSubmit = (data: FormValues) => {
-    updateUser(data);
+    updateProfile(data);
   };
 
   if (isLoading) {
@@ -80,22 +121,21 @@ export default function Settings() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Settings</h1>
+        <h1 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Settings</h1>
         <p className="text-muted-foreground mt-1">Configure your energy system profile.</p>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          
+
           <Tabs defaultValue="location" className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-8">
-              <TabsTrigger value="location">Location</TabsTrigger>
-              <TabsTrigger value="solar">Solar</TabsTrigger>
-              <TabsTrigger value="ev">EV</TabsTrigger>
-              <TabsTrigger value="battery">Battery</TabsTrigger>
+              <TabsTrigger value="location" data-testid="tab-location">Location</TabsTrigger>
+              <TabsTrigger value="solar" data-testid="tab-solar">Solar</TabsTrigger>
+              <TabsTrigger value="ev" data-testid="tab-ev">EV</TabsTrigger>
+              <TabsTrigger value="battery" data-testid="tab-battery">Battery</TabsTrigger>
             </TabsList>
 
-            {/* LOCATION TAB */}
             <TabsContent value="location">
               <Card>
                 <CardHeader>
@@ -107,38 +147,53 @@ export default function Settings() {
                     Used to fetch accurate weather and solar irradiance data.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-6 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="latitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.0001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                <CardContent className="space-y-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDetectLocation}
+                    disabled={detectingLocation}
+                    data-testid="button-detect-location"
+                  >
+                    {detectingLocation ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Navigation className="w-4 h-4 mr-2" />
                     )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="longitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.0001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    {detectingLocation ? "Detecting..." : "Use My Current Location"}
+                  </Button>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="latitude"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Latitude</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.0001" data-testid="input-latitude" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="longitude"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Longitude</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.0001" data-testid="input-longitude" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* SOLAR TAB */}
             <TabsContent value="solar">
               <Card>
                 <CardHeader>
@@ -158,7 +213,7 @@ export default function Settings() {
                       <FormItem>
                         <FormLabel>System Size (kW)</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.1" {...field} />
+                          <Input type="number" step="0.1" data-testid="input-system-kw" {...field} />
                         </FormControl>
                         <FormDescription>Total rated capacity of your panels</FormDescription>
                         <FormMessage />
@@ -172,7 +227,7 @@ export default function Settings() {
                       <FormItem>
                         <FormLabel>Derate Factor (0-1)</FormLabel>
                         <FormControl>
-                          <Input type="number" step="0.01" max="1" min="0" {...field} />
+                          <Input type="number" step="0.01" max="1" min="0" data-testid="input-derate" {...field} />
                         </FormControl>
                         <FormDescription>Efficiency loss (typical: 0.85)</FormDescription>
                         <FormMessage />
@@ -183,7 +238,6 @@ export default function Settings() {
               </Card>
             </TabsContent>
 
-            {/* EV TAB */}
             <TabsContent value="ev">
               <Card>
                 <CardHeader>
@@ -192,41 +246,64 @@ export default function Settings() {
                     Electric Vehicle
                   </CardTitle>
                   <CardDescription>
-                    Battery capacity and charging speed of your car.
+                    Select your car model or enter battery specs manually.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-6 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="evCapacityKwh"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Battery Capacity (kWh)</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="1" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="evMaxChargeKw"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Max Charge Rate (kW)</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.1" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <CardContent className="space-y-6">
+                  <div>
+                    <FormLabel>Car Model</FormLabel>
+                    <Select
+                      onValueChange={handleCarModelSelect}
+                      value={form.watch("evCarModelId")?.toString() || "custom"}
+                    >
+                      <SelectTrigger className="mt-2" data-testid="select-car-model">
+                        <SelectValue placeholder="Select your vehicle..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">Custom / Manual Entry</SelectItem>
+                        {!carsLoading && (carModels || []).map((m: any) => (
+                          <SelectItem key={m.id} value={m.id.toString()}>
+                            {m.year} {m.make} {m.model} ({m.batteryCapacityKwh} kWh)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Selecting a model auto-fills battery capacity and charge rate.
+                    </p>
+                  </div>
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="evCapacityKwh"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Battery Capacity (kWh)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="1" data-testid="input-ev-capacity" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="evMaxChargeKw"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Charge Rate (kW)</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.1" data-testid="input-ev-charge-rate" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* BATTERY TAB */}
             <TabsContent value="battery">
               <Card>
                 <CardHeader>
@@ -254,49 +331,37 @@ export default function Settings() {
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
+                            data-testid="switch-home-battery"
                           />
                         </FormControl>
                       </FormItem>
                     )}
                   />
-
                   {form.watch("hasHomeBattery") && (
                     <div className="grid gap-6 sm:grid-cols-3 animate-in fade-in slide-in-from-top-4">
-                      <FormField
-                        control={form.control}
-                        name="homeBatteryCapacityKwh"
+                      <FormField control={form.control} name="homeBatteryCapacityKwh"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Capacity (kWh)</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.1" {...field} />
-                            </FormControl>
+                            <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="homeBatteryMaxChargeKw"
+                      <FormField control={form.control} name="homeBatteryMaxChargeKw"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Max Charge (kW)</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.1" {...field} />
-                            </FormControl>
+                            <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="homeBatteryMaxDischargeKw"
+                      <FormField control={form.control} name="homeBatteryMaxDischargeKw"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Max Discharge (kW)</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.1" {...field} />
-                            </FormControl>
+                            <FormControl><Input type="number" step="0.1" {...field} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -309,7 +374,7 @@ export default function Settings() {
           </Tabs>
 
           <div className="flex justify-end">
-            <Button type="submit" size="lg" disabled={isSaving}>
+            <Button type="submit" size="lg" disabled={isSaving} data-testid="button-save-settings">
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

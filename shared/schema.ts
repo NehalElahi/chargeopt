@@ -1,29 +1,65 @@
-import { pgTable, text, serial, integer, boolean, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, real, jsonb, varchar, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
-// === TABLE DEFINITIONS ===
-export const users = pgTable("users", {
+export * from "./models/auth";
+
+// === EV Car Models (reference table) ===
+export const evCarModels = pgTable("ev_car_models", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  // Location
+  make: text("make").notNull(),
+  model: text("model").notNull(),
+  year: integer("year").notNull(),
+  batteryCapacityKwh: real("battery_capacity_kwh").notNull(),
+  maxChargeKw: real("max_charge_kw").notNull(),
+  rangeKm: integer("range_km"),
+});
+
+export const insertEvCarModelSchema = createInsertSchema(evCarModels).omit({ id: true });
+
+// === User Profiles (linked to auth users) ===
+export const userProfiles = pgTable("user_profiles", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().unique(),
   latitude: real("latitude").default(37.7749),
   longitude: real("longitude").default(-122.4194),
-  // Solar Config
   systemKw: real("system_kw").default(5.0),
   panelDerate: real("panel_derate").default(0.85),
-  // EV Config
+  evCarModelId: integer("ev_car_model_id"),
   evCapacityKwh: real("ev_capacity_kwh").default(60.0),
   evMaxChargeKw: real("ev_max_charge_kw").default(7.0),
-  // Home Battery Config
   hasHomeBattery: boolean("has_home_battery").default(false),
   homeBatteryCapacityKwh: real("home_battery_capacity_kwh").default(13.5),
   homeBatteryMaxChargeKw: real("home_battery_max_charge_kw").default(5.0),
   homeBatteryMaxDischargeKw: real("home_battery_max_discharge_kw").default(5.0),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true });
+
+// === Optimization History (for savings tracking) ===
+export const optimizationRuns = pgTable("optimization_runs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  runAt: timestamp("run_at").defaultNow(),
+  netCost: real("net_cost").notNull(),
+  savingsVsAllGrid: real("savings_vs_all_grid").notNull(),
+  totalGridKwh: real("total_grid_kwh").notNull(),
+  totalSolarUsedKwh: real("total_solar_used_kwh").notNull(),
+  totalExportKwh: real("total_export_kwh").notNull(),
+  recommendation: text("recommendation").notNull(),
+  explanation: text("explanation"),
+});
+
+export const insertOptimizationRunSchema = createInsertSchema(optimizationRuns).omit({ id: true, runAt: true });
+
+// === Relations ===
+export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
+  carModel: one(evCarModels, {
+    fields: [userProfiles.evCarModelId],
+    references: [evCarModels.id],
+  }),
+}));
 
 // === TYPES for Logic (Ported from Python Pydantic models) ===
 
@@ -41,6 +77,11 @@ export const solarPointSchema = z.object({
 
 export const solarForecastSeriesSchema = z.object({
   points: z.array(solarPointSchema),
+});
+
+export const solarForecastSchema = z.object({
+  irradiance_kwh_m2: z.number(),
+  expected_production_kwh: z.number(),
 });
 
 export const pricePointSchema = z.object({
@@ -90,28 +131,36 @@ export const externalDataSchema = z.object({
 export const optimizeRequestSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  // Overrides or current state
   ev_soc_kwh: z.number(),
-  target_soc: z.number(), // 0.0 to 1.0
+  target_soc: z.number(),
   deadline_hours: z.number(),
-  // If not provided, use user settings
   system_kw: z.number().optional(),
   ev_capacity_kwh: z.number().optional(),
   ev_max_charge_kw: z.number().optional(),
-  // Home battery optional overrides
   has_home_battery: z.boolean().optional(),
   home_battery_capacity_kwh: z.number().optional(),
   home_battery_soc_kwh: z.number().optional(),
 });
 
 // === EXPLICIT TYPES ===
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UserProfile = typeof userProfiles.$inferSelect;
+export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
+export type EvCarModel = typeof evCarModels.$inferSelect;
+export type InsertEvCarModel = z.infer<typeof insertEvCarModelSchema>;
+export type OptimizationRun = typeof optimizationRuns.$inferSelect;
+export type InsertOptimizationRun = z.infer<typeof insertOptimizationRunSchema>;
 
 export type BatteryState = z.infer<typeof batteryStateSchema>;
 export type SolarPoint = z.infer<typeof solarPointSchema>;
+export type SolarForecast = z.infer<typeof solarForecastSchema>;
 export type PricePoint = z.infer<typeof pricePointSchema>;
+export type PriceForecast = z.infer<typeof priceForecastSchema>;
 export type PlanStep = z.infer<typeof planStepSchema>;
 export type DecisionOutcome = z.infer<typeof decisionOutcomeSchema>;
 export type OptimizeRequest = z.infer<typeof optimizeRequestSchema>;
 export type ExternalData = z.infer<typeof externalDataSchema>;
+
+export type GridRate = {
+  price_per_kwh: number;
+  currency: string;
+};

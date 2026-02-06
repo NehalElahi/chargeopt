@@ -1,12 +1,14 @@
 import { z } from 'zod';
-import { 
-  insertUserSchema, 
-  users, 
-  optimizeRequestSchema, 
+import {
+  insertUserProfileSchema,
+  optimizeRequestSchema,
   decisionOutcomeSchema,
   externalDataSchema,
   solarForecastSeriesSchema,
-  priceForecastSchema
+  priceForecastSchema,
+  evCarModels,
+  userProfiles,
+  optimizationRuns
 } from './schema';
 
 export const errorSchemas = {
@@ -23,24 +25,41 @@ export const errorSchemas = {
 };
 
 export const api = {
-  users: {
+  profile: {
     get: {
       method: 'GET' as const,
-      path: '/api/user' as const,
+      path: '/api/profile' as const,
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: z.custom<typeof userProfiles.$inferSelect>(),
         404: errorSchemas.notFound,
       },
     },
     update: {
       method: 'PUT' as const,
-      path: '/api/user' as const,
-      input: insertUserSchema.partial(),
+      path: '/api/profile' as const,
+      input: insertUserProfileSchema.partial(),
       responses: {
-        200: z.custom<typeof users.$inferSelect>(),
+        200: z.custom<typeof userProfiles.$inferSelect>(),
         400: errorSchemas.validation,
       },
     }
+  },
+  carModels: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/car-models' as const,
+      responses: {
+        200: z.array(z.custom<typeof evCarModels.$inferSelect>()),
+      },
+    },
+    get: {
+      method: 'GET' as const,
+      path: '/api/car-models/:id' as const,
+      responses: {
+        200: z.custom<typeof evCarModels.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
   },
   weather: {
     get: {
@@ -91,6 +110,26 @@ export const api = {
         200: priceForecastSchema,
       }
     }
+  },
+  savings: {
+    weekly: {
+      method: 'GET' as const,
+      path: '/api/savings/weekly' as const,
+      responses: {
+        200: z.array(z.object({
+          week: z.string(),
+          savings: z.number(),
+          runs: z.number(),
+        })),
+      }
+    },
+    history: {
+      method: 'GET' as const,
+      path: '/api/savings/history' as const,
+      responses: {
+        200: z.array(z.custom<typeof optimizationRuns.$inferSelect>()),
+      }
+    },
   }
 };
 
