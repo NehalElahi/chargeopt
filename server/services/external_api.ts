@@ -2,6 +2,7 @@ import { ExternalData } from "@shared/schema";
 
 export class ExternalAPIService {
   private static BASE_URL = "https://api.open-meteo.com/v1/forecast";
+  private static TIMEOUT_MS = 5000;
 
   async getWeather(latitude: number, longitude: number): Promise<ExternalData> {
     const params = new URLSearchParams({
@@ -10,7 +11,22 @@ export class ExternalAPIService {
       current_weather: "true"
     });
 
-    const response = await fetch(`${ExternalAPIService.BASE_URL}?${params}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ExternalAPIService.TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(`${ExternalAPIService.BASE_URL}?${params}`, {
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        throw new Error("Weather API timeout");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
     
     if (!response.ok) {
       throw new Error(`Weather API error: ${response.statusText}`);

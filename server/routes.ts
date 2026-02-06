@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -12,6 +12,29 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 
 function getUserId(req: any): string {
   return req.user?.claims?.sub;
+}
+
+function createRateLimiter(windowMs: number, maxHits: number): RequestHandler {
+  const hits = new Map<string, { count: number; reset: number }>();
+
+  return (req, res, next) => {
+    const now = Date.now();
+    const ip = req.ip || req.headers["x-forwarded-for"]?.toString() || "unknown";
+    const record = hits.get(ip);
+
+    if (!record || now > record.reset) {
+      hits.set(ip, { count: 1, reset: now + windowMs });
+      return next();
+    }
+
+    if (record.count >= maxHits) {
+      return res.status(429).json({ message: "Too many requests, please slow down." });
+    }
+
+    record.count += 1;
+    hits.set(ip, record);
+    next();
+  };
 }
 
 async function seedCarModels() {
@@ -54,6 +77,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const publicLimiter = createRateLimiter(60_000, 60);
+
   await setupAuth(app);
   registerAuthRoutes(app);
 
@@ -112,7 +137,7 @@ export async function registerRoutes(
   });
 
   // === Weather Route ===
-  app.get(api.weather.get.path, async (req, res) => {
+  app.get(api.weather.get.path, publicLimiter, async (req, res) => {
     try {
       const { lat, lon } = api.weather.get.input.parse(req.query);
       const data = await externalService.getWeather(lat, lon);
@@ -124,13 +149,13 @@ export async function registerRoutes(
   });
 
   // === Forecast Routes ===
-  app.get(api.forecast.solar.path, async (req, res) => {
+  app.get(api.forecast.solar.path, publicLimiter, async (req, res) => {
     const { lat, lon, system_kw } = api.forecast.solar.input.parse(req.query);
     const forecast = await solarService.getHourlyForecast(lat, lon, system_kw);
     res.json(forecast);
   });
 
-  app.get(api.forecast.prices.path, async (req, res) => {
+  app.get(api.forecast.prices.path, publicLimiter, async (req, res) => {
     const { lat, lon } = api.forecast.prices.input.parse(req.query);
     const forecast = await gridService.getPriceForecast(lat, lon);
     res.json(forecast);
