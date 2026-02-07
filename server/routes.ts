@@ -256,5 +256,11 @@ export async function registerRoutes(
     res.json(history);
   });
 
+  app.delete(api.savings.reset.path, isAuthenticated, async (req, res) => {
+    const userId = getUserId(req);
+    const deleted = await storage.deleteAllOptimizationRuns(userId);
+    res.json({ success: true, deleted });
+  });
+
   return httpServer;
 }

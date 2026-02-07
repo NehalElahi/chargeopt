@@ -147,6 +147,13 @@ export const api = {
         200: z.array(z.custom<typeof optimizationRuns.$inferSelect>()),
       }
     },
+    reset: {
+      method: 'DELETE' as const,
+      path: '/api/savings' as const,
+      responses: {
+        200: z.object({ success: z.boolean(), deleted: z.number() }),
+      }
+    },
   }
 };
 

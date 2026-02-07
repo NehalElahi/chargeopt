@@ -104,4 +104,43 @@ export function useOptimizationHistory() {
   });
 }
 
+export function useResetSavings() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(api.savings.reset.path, {
+        method: api.savings.reset.method,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("401: Unauthorized");
+        throw new Error("Failed to reset savings");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [api.savings.weekly.path] });
+      queryClient.invalidateQueries({ queryKey: [api.savings.history.path] });
+      toast({
+        title: "Savings Reset",
+        description: `Cleared ${data.deleted} optimization record${data.deleted === 1 ? '' : 's'} from your history.`,
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
 export { useProfile as useUser, useUpdateProfile as useUpdateUser };

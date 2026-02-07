@@ -1,7 +1,9 @@
-import { useWeeklySavings, useOptimizationHistory } from "@/hooks/use-user";
+import { useState } from "react";
+import { useWeeklySavings, useOptimizationHistory, useResetSavings } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, DollarSign, TrendingUp, Calendar } from "lucide-react";
+import { Loader2, DollarSign, TrendingUp, Calendar, Trash2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -9,6 +11,8 @@ import {
 export default function Savings() {
   const { data: weeklySavings, isLoading: savingsLoading } = useWeeklySavings();
   const { data: history, isLoading: historyLoading } = useOptimizationHistory();
+  const resetMutation = useResetSavings();
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   if (savingsLoading || historyLoading) {
     return (
@@ -20,6 +24,7 @@ export default function Savings() {
 
   const totalSavings = (weeklySavings || []).reduce((acc: number, w: any) => acc + w.savings, 0);
   const totalRuns = (weeklySavings || []).reduce((acc: number, w: any) => acc + w.runs, 0);
+  const hasData = (history || []).length > 0;
 
   const chartData = (weeklySavings || []).map((w: any) => ({
     week: new Date(w.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -27,11 +32,53 @@ export default function Savings() {
     runs: w.runs,
   }));
 
+  const handleReset = () => {
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      return;
+    }
+    resetMutation.mutate(undefined, {
+      onSettled: () => setConfirmingReset(false),
+    });
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Savings Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Track your weekly charging savings</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Savings Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Track your weekly charging savings</p>
+        </div>
+        {hasData && (
+          <div className="flex items-center gap-2">
+            {confirmingReset && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirmingReset(false)}
+                data-testid="button-cancel-reset"
+              >
+                Cancel
+              </Button>
+            )}
+            <Button
+              variant={confirmingReset ? "destructive" : "outline"}
+              size="sm"
+              onClick={handleReset}
+              disabled={resetMutation.isPending}
+              data-testid="button-reset-savings"
+            >
+              {resetMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              <span className="ml-1.5">
+                {confirmingReset ? "Confirm Reset" : "Reset Data"}
+              </span>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -40,7 +87,7 @@ export default function Savings() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Savings</p>
-                <h3 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">${totalSavings.toFixed(2)}</h3>
+                <h3 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1" data-testid="text-total-savings">${totalSavings.toFixed(2)}</h3>
               </div>
               <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
                 <DollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -54,7 +101,7 @@ export default function Savings() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Optimizations Run</p>
-                <h3 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1">{totalRuns}</h3>
+                <h3 className="text-3xl font-bold text-blue-600 dark:text-blue-400 mt-1" data-testid="text-total-runs">{totalRuns}</h3>
               </div>
               <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
                 <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -68,7 +115,7 @@ export default function Savings() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Avg Savings / Run</p>
-                <h3 className="text-3xl font-bold text-primary mt-1">
+                <h3 className="text-3xl font-bold text-primary mt-1" data-testid="text-avg-savings">
                   ${totalRuns > 0 ? (totalSavings / totalRuns).toFixed(2) : "0.00"}
                 </h3>
               </div>

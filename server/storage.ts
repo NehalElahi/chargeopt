@@ -18,6 +18,7 @@ export interface IStorage {
   createOptimizationRun(run: InsertOptimizationRun): Promise<OptimizationRun>;
   getOptimizationRuns(userId: string, limit?: number): Promise<OptimizationRun[]>;
   getWeeklySavings(userId: string): Promise<{ week: string; savings: number; runs: number }[]>;
+  deleteAllOptimizationRuns(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -102,6 +103,14 @@ export class DatabaseStorage implements IStorage {
     return Array.from(weekMap.entries())
       .map(([week, data]) => ({ week, savings: Number(data.savings.toFixed(2)), runs: data.runs }))
       .sort((a, b) => a.week.localeCompare(b.week));
+  }
+
+  async deleteAllOptimizationRuns(userId: string): Promise<number> {
+    const deleted = await db
+      .delete(optimizationRuns)
+      .where(eq(optimizationRuns.userId, userId))
+      .returning();
+    return deleted.length;
   }
 }
 
