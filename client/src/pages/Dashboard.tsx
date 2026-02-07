@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useProfile } from "@/hooks/use-user";
-import { useOptimization } from "@/hooks/use-optimization";
+import { useOptimization, useConfirmOptimization } from "@/hooks/use-optimization";
 import { WeatherCard } from "@/components/WeatherCard";
 import { OptimizationResults } from "@/components/OptimizationResults";
 import { Slider } from "@/components/ui/slider";
@@ -13,6 +13,8 @@ import { Zap, Timer, Loader2 } from "lucide-react";
 export default function Dashboard() {
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { mutate: runOptimization, isPending, data: results } = useOptimization();
+  const confirmMutation = useConfirmOptimization();
+  const [confirmed, setConfirmed] = useState(false);
 
   const [evSocPercent, setEvSocPercent] = useState([20]);
   const [targetSocPercent, setTargetSocPercent] = useState([80]);
@@ -29,6 +31,8 @@ export default function Dashboard() {
   const handleOptimize = () => {
     if (!profile) return;
 
+    setConfirmed(false);
+
     const evCapacity = profile.evCapacityKwh || 60;
     const currentKwh = (evSocPercent[0] / 100) * evCapacity;
     const targetRatio = targetSocPercent[0] / 100;
@@ -43,6 +47,21 @@ export default function Dashboard() {
       ev_max_charge_kw: profile.evMaxChargeKw || 7,
       has_home_battery: profile.hasHomeBattery || false,
       home_battery_capacity_kwh: profile.homeBatteryCapacityKwh || 13.5,
+    });
+  };
+
+  const handleConfirm = () => {
+    if (!results) return;
+    confirmMutation.mutate({
+      netCost: results.net_cost,
+      savingsVsAllGrid: results.savings_vs_all_grid,
+      totalGridKwh: results.total_grid_kwh,
+      totalSolarUsedKwh: results.total_solar_used_kwh,
+      totalExportKwh: results.total_export_kwh,
+      recommendation: results.recommendation,
+      explanation: results.explanation,
+    }, {
+      onSuccess: () => setConfirmed(true),
     });
   };
 
@@ -142,7 +161,12 @@ export default function Dashboard() {
 
         <div className="lg:col-span-2">
           {results ? (
-            <OptimizationResults results={results} />
+            <OptimizationResults
+              results={results}
+              onConfirm={handleConfirm}
+              isConfirming={confirmMutation.isPending}
+              isConfirmed={confirmed}
+            />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-card border border-dashed border-border rounded-2xl text-muted-foreground min-h-[400px]">
               <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mb-4">

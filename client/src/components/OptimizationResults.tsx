@@ -5,13 +5,17 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Sun, Battery, Zap, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DollarSign, Sun, Battery, Zap, ArrowRight, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 
 interface OptimizationResultsProps {
   results: DecisionOutcome;
+  onConfirm: () => void;
+  isConfirming: boolean;
+  isConfirmed: boolean;
 }
 
-export function OptimizationResults({ results }: OptimizationResultsProps) {
+export function OptimizationResults({ results, onConfirm, isConfirming, isConfirmed }: OptimizationResultsProps) {
   const chartData = results.steps.map(step => ({
     hour: `+${step.hour}h`,
     GridPrice: step.grid_price,
@@ -25,16 +29,53 @@ export function OptimizationResults({ results }: OptimizationResultsProps) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Recommendation Banner */}
-      <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex items-start gap-4">
-        <div className="bg-primary/10 p-3 rounded-full">
-          <CheckCircle2 className="w-6 h-6 text-primary" />
+      {isConfirmed ? (
+        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex items-start gap-4">
+          <div className="bg-primary/10 p-3 rounded-full">
+            <ShieldCheck className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-foreground mb-1" data-testid="text-confirmed-title">Plan Confirmed</h3>
+            <p className="text-muted-foreground" data-testid="text-confirmed-desc">
+              Your charging plan has been locked in and your savings of ${results.savings_vs_all_grid.toFixed(2)} have been recorded.
+              You can still experiment with different configurations above.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-foreground mb-1">Optimization Complete</h3>
-          <p className="text-muted-foreground">{results.explanation}</p>
+      ) : (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="bg-amber-100 dark:bg-amber-900/50 p-3 rounded-full">
+              <CheckCircle2 className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-foreground mb-1" data-testid="text-preview-title">Preview: Charging Plan</h3>
+              <p className="text-muted-foreground mb-4" data-testid="text-preview-desc">
+                You are choosing this configuration of charging, so we will be allocating the energy as shown below.
+                Your estimated savings would be <span className="font-semibold text-foreground">${results.savings_vs_all_grid.toFixed(2)}</span> compared to grid-only charging.
+                Feel free to adjust your parameters and run again to compare options.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  onClick={onConfirm}
+                  disabled={isConfirming}
+                  data-testid="button-confirm-plan"
+                >
+                  {isConfirming ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Confirming...
+                    </>
+                  ) : "Confirm This Plan"}
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  or adjust parameters and re-run to explore other options
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -44,7 +85,7 @@ export function OptimizationResults({ results }: OptimizationResultsProps) {
           value={`$${results.net_cost.toFixed(2)}`}
           subtext={`vs $${(results.net_cost + results.savings_vs_all_grid).toFixed(2)} baseline`}
           color="text-emerald-600"
-          bg="bg-emerald-50"
+          bg="bg-emerald-50 dark:bg-emerald-950/30"
         />
         <StatCard 
           icon={Sun}
@@ -52,7 +93,7 @@ export function OptimizationResults({ results }: OptimizationResultsProps) {
           value={`${results.total_solar_used_kwh.toFixed(1)} kWh`}
           subtext="Direct to EV/Home"
           color="text-amber-500"
-          bg="bg-amber-50"
+          bg="bg-amber-50 dark:bg-amber-950/30"
         />
         <StatCard 
           icon={Zap}
@@ -60,7 +101,7 @@ export function OptimizationResults({ results }: OptimizationResultsProps) {
           value={`${results.total_grid_kwh.toFixed(1)} kWh`}
           subtext="Imported energy"
           color="text-blue-500"
-          bg="bg-blue-50"
+          bg="bg-blue-50 dark:bg-blue-950/30"
         />
         <StatCard 
           icon={ArrowRight}
@@ -68,7 +109,7 @@ export function OptimizationResults({ results }: OptimizationResultsProps) {
           value={`${results.total_export_kwh.toFixed(1)} kWh`}
           subtext="Sold to grid"
           color="text-purple-500"
-          bg="bg-purple-50"
+          bg="bg-purple-50 dark:bg-purple-950/30"
         />
       </div>
 

@@ -85,6 +85,23 @@ export const api = {
         400: errorSchemas.validation,
       },
     },
+    confirm: {
+      method: 'POST' as const,
+      path: '/api/optimize/confirm' as const,
+      input: z.object({
+        netCost: z.number(),
+        savingsVsAllGrid: z.number(),
+        totalGridKwh: z.number(),
+        totalSolarUsedKwh: z.number(),
+        totalExportKwh: z.number(),
+        recommendation: z.string(),
+        explanation: z.string(),
+      }),
+      responses: {
+        200: z.object({ success: z.boolean() }),
+        400: errorSchemas.validation,
+      },
+    },
   },
   forecast: {
     solar: {

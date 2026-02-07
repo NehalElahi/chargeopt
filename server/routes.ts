@@ -206,24 +206,39 @@ export async function registerRoutes(
         homeBattery
       );
 
-      // Save to history
-      await storage.createOptimizationRun({
-        userId,
-        netCost: outcome.net_cost,
-        savingsVsAllGrid: outcome.savings_vs_all_grid,
-        totalGridKwh: outcome.total_grid_kwh,
-        totalSolarUsedKwh: outcome.total_solar_used_kwh,
-        totalExportKwh: outcome.total_export_kwh,
-        recommendation: outcome.recommendation,
-        explanation: outcome.explanation,
-      });
-
       res.json(outcome);
     } catch (err) {
       console.error("Optimization Error:", err);
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
+      res.status(500).json({ message: "Internal Server Error" });
+    }
+  });
+
+  // === Confirm Optimization (auth-protected) ===
+  app.post(api.optimize.confirm.path, isAuthenticated, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const input = api.optimize.confirm.input.parse(req.body);
+
+      await storage.createOptimizationRun({
+        userId,
+        netCost: input.netCost,
+        savingsVsAllGrid: input.savingsVsAllGrid,
+        totalGridKwh: input.totalGridKwh,
+        totalSolarUsedKwh: input.totalSolarUsedKwh,
+        totalExportKwh: input.totalExportKwh,
+        recommendation: input.recommendation,
+        explanation: input.explanation,
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error("Confirm Error:", err);
       res.status(500).json({ message: "Internal Server Error" });
     }
   });

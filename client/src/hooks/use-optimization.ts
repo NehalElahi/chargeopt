@@ -1,12 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
-import type { OptimizeRequest } from "@shared/schema";
+import type { OptimizeRequest, DecisionOutcome } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 
 export function useOptimization() {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: OptimizeRequest) => {
@@ -28,11 +27,8 @@ export function useOptimization() {
         throw new Error("Optimization failed");
       }
 
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.savings.weekly.path] });
-      queryClient.invalidateQueries({ queryKey: [api.savings.history.path] });
+      const json = await res.json();
+      return json as DecisionOutcome;
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -42,6 +38,57 @@ export function useOptimization() {
       }
       toast({
         title: "Optimization Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export function useConfirmOptimization() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      netCost: number;
+      savingsVsAllGrid: number;
+      totalGridKwh: number;
+      totalSolarUsedKwh: number;
+      totalExportKwh: number;
+      recommendation: string;
+      explanation: string;
+    }) => {
+      const res = await fetch(api.optimize.confirm.path, {
+        method: api.optimize.confirm.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("401: Unauthorized");
+        throw new Error("Failed to confirm optimization");
+      }
+
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.savings.weekly.path] });
+      queryClient.invalidateQueries({ queryKey: [api.savings.history.path] });
+      toast({
+        title: "Charging Plan Confirmed",
+        description: "Your savings have been recorded.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
+        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      toast({
+        title: "Confirmation Failed",
         description: error.message,
         variant: "destructive",
       });
