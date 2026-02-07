@@ -19,6 +19,7 @@ export interface IStorage {
   getOptimizationRuns(userId: string, limit?: number): Promise<OptimizationRun[]>;
   getWeeklySavings(userId: string): Promise<{ week: string; savings: number; runs: number }[]>;
   deleteAllOptimizationRuns(userId: string): Promise<number>;
+  deleteLastOptimizationRun(userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -111,6 +112,18 @@ export class DatabaseStorage implements IStorage {
       .where(eq(optimizationRuns.userId, userId))
       .returning();
     return deleted.length;
+  }
+
+  async deleteLastOptimizationRun(userId: string): Promise<boolean> {
+    const [latest] = await db
+      .select({ id: optimizationRuns.id })
+      .from(optimizationRuns)
+      .where(eq(optimizationRuns.userId, userId))
+      .orderBy(desc(optimizationRuns.runAt))
+      .limit(1);
+    if (!latest) return false;
+    await db.delete(optimizationRuns).where(eq(optimizationRuns.id, latest.id));
+    return true;
   }
 }
 

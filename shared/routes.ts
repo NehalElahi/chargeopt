@@ -154,6 +154,13 @@ export const api = {
         200: z.object({ success: z.boolean(), deleted: z.number() }),
       }
     },
+    deleteLast: {
+      method: 'DELETE' as const,
+      path: '/api/savings/last' as const,
+      responses: {
+        200: z.object({ success: z.boolean() }),
+      }
+    },
   }
 };
 

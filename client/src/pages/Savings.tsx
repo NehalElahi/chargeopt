@@ -1,18 +1,21 @@
 import { useState } from "react";
-import { useWeeklySavings, useOptimizationHistory, useResetSavings } from "@/hooks/use-user";
+import { useWeeklySavings, useOptimizationHistory, useResetSavings, useDeleteLastSavings } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, DollarSign, TrendingUp, Calendar, Trash2 } from "lucide-react";
+import { Loader2, DollarSign, TrendingUp, Calendar, Trash2, Undo2 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+
+type ConfirmState = null | "last" | "all";
 
 export default function Savings() {
   const { data: weeklySavings, isLoading: savingsLoading } = useWeeklySavings();
   const { data: history, isLoading: historyLoading } = useOptimizationHistory();
   const resetMutation = useResetSavings();
-  const [confirmingReset, setConfirmingReset] = useState(false);
+  const deleteLastMutation = useDeleteLastSavings();
+  const [confirming, setConfirming] = useState<ConfirmState>(null);
 
   if (savingsLoading || historyLoading) {
     return (
@@ -25,6 +28,7 @@ export default function Savings() {
   const totalSavings = (weeklySavings || []).reduce((acc: number, w: any) => acc + w.savings, 0);
   const totalRuns = (weeklySavings || []).reduce((acc: number, w: any) => acc + w.runs, 0);
   const hasData = (history || []).length > 0;
+  const isPending = resetMutation.isPending || deleteLastMutation.isPending;
 
   const chartData = (weeklySavings || []).map((w: any) => ({
     week: new Date(w.week).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -32,13 +36,23 @@ export default function Savings() {
     runs: w.runs,
   }));
 
-  const handleReset = () => {
-    if (!confirmingReset) {
-      setConfirmingReset(true);
+  const handleDeleteLast = () => {
+    if (confirming !== "last") {
+      setConfirming("last");
+      return;
+    }
+    deleteLastMutation.mutate(undefined, {
+      onSettled: () => setConfirming(null),
+    });
+  };
+
+  const handleDeleteAll = () => {
+    if (confirming !== "all") {
+      setConfirming("all");
       return;
     }
     resetMutation.mutate(undefined, {
-      onSettled: () => setConfirmingReset(false),
+      onSettled: () => setConfirming(null),
     });
   };
 
@@ -51,32 +65,69 @@ export default function Savings() {
         </div>
         {hasData && (
           <div className="flex items-center gap-2">
-            {confirmingReset && (
+            {confirming && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setConfirmingReset(false)}
-                data-testid="button-cancel-reset"
+                onClick={() => setConfirming(null)}
+                disabled={isPending}
+                data-testid="button-cancel-delete"
               >
                 Cancel
               </Button>
             )}
-            <Button
-              variant={confirmingReset ? "destructive" : "outline"}
-              size="sm"
-              onClick={handleReset}
-              disabled={resetMutation.isPending}
-              data-testid="button-reset-savings"
-            >
-              {resetMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-              <span className="ml-1.5">
-                {confirmingReset ? "Confirm Reset" : "Reset Data"}
-              </span>
-            </Button>
+            {confirming === "last" ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteLast}
+                disabled={isPending}
+                data-testid="button-confirm-delete-last"
+              >
+                {deleteLastMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Undo2 className="w-4 h-4" />
+                )}
+                <span className="ml-1.5">Confirm Remove</span>
+              </Button>
+            ) : confirming === "all" ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteAll}
+                disabled={isPending}
+                data-testid="button-confirm-delete-all"
+              >
+                {resetMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span className="ml-1.5">Confirm Clear All</span>
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteLast}
+                  data-testid="button-delete-last"
+                >
+                  <Undo2 className="w-4 h-4" />
+                  <span className="ml-1.5">Undo Last</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeleteAll}
+                  data-testid="button-delete-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="ml-1.5">Clear All</span>
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>
