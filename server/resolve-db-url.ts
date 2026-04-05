@@ -1,4 +1,5 @@
 import dns from "node:dns";
+import parse from "pg-connection-string";
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -8,7 +9,7 @@ dns.setDefaultResultOrder("ipv4first");
  * `rejectUnauthorized: false` for Supabase (see db.ts).
  */
 export function resolveDatabaseUrlToIpv4(url: string): string {
-  if (!url || !/supabase\.co/i.test(url)) {
+  if (!url || !/supabase/i.test(url)) {
     return url;
   }
   try {
@@ -17,7 +18,8 @@ export function resolveDatabaseUrlToIpv4(url: string): string {
     if (!host) return url;
     const result = dns.lookupSync(host, { family: 4 });
     const ip = typeof result === "string" ? result : result.address;
-    return url.split(host).join(ip);
+    // Replace hostname only (first occurrence is the host in standard URIs).
+    return url.replace(host, ip);
   } catch {
     return url;
   }
