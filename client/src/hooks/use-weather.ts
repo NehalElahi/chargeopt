@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@shared/routes";
+import { apiUrl } from "@/lib/api-url";
 
 export function useWeather(lat: number | undefined, lon: number | undefined) {
   return useQuery({
@@ -7,7 +8,7 @@ export function useWeather(lat: number | undefined, lon: number | undefined) {
     queryFn: async () => {
       if (lat === undefined || lon === undefined) return null;
       
-      const url = `${api.weather.get.path}?lat=${lat}&lon=${lon}`;
+      const url = `${apiUrl(api.weather.get.path)}?lat=${lat}&lon=${lon}`;
       const res = await fetch(url, { credentials: "include" });
       
       if (!res.ok) {

@@ -3,12 +3,13 @@ import { api } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 import type { InsertUserProfile } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/auth-utils";
+import { apiUrl } from "@/lib/api-url";
 
 export function useProfile() {
   return useQuery({
     queryKey: [api.profile.get.path],
     queryFn: async () => {
-      const res = await fetch(api.profile.get.path, { credentials: "include" });
+      const res = await fetch(apiUrl(api.profile.get.path), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 401) throw new Error("401: Unauthorized");
         if (res.status === 404) return null;
@@ -25,7 +26,7 @@ export function useUpdateProfile() {
 
   return useMutation({
     mutationFn: async (updates: Partial<InsertUserProfile>) => {
-      const res = await fetch(api.profile.update.path, {
+      const res = await fetch(apiUrl(api.profile.update.path), {
         method: api.profile.update.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
@@ -53,7 +54,7 @@ export function useUpdateProfile() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = apiUrl("/api/login"); }, 500);
         return;
       }
       toast({
@@ -69,7 +70,7 @@ export function useCarModels() {
   return useQuery({
     queryKey: [api.carModels.list.path],
     queryFn: async () => {
-      const res = await fetch(api.carModels.list.path, { credentials: "include" });
+      const res = await fetch(apiUrl(api.carModels.list.path), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch car models");
       return res.json();
     },
@@ -80,7 +81,7 @@ export function useWeeklySavings() {
   return useQuery({
     queryKey: [api.savings.weekly.path],
     queryFn: async () => {
-      const res = await fetch(api.savings.weekly.path, { credentials: "include" });
+      const res = await fetch(apiUrl(api.savings.weekly.path), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 401) throw new Error("401: Unauthorized");
         throw new Error("Failed to fetch savings data");
@@ -94,7 +95,7 @@ export function useOptimizationHistory() {
   return useQuery({
     queryKey: [api.savings.history.path],
     queryFn: async () => {
-      const res = await fetch(api.savings.history.path, { credentials: "include" });
+      const res = await fetch(apiUrl(api.savings.history.path), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 401) throw new Error("401: Unauthorized");
         throw new Error("Failed to fetch optimization history");
@@ -110,7 +111,7 @@ export function useResetSavings() {
 
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.savings.reset.path, {
+      const res = await fetch(apiUrl(api.savings.reset.path), {
         method: api.savings.reset.method,
         credentials: "include",
       });
@@ -131,7 +132,7 @@ export function useResetSavings() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = apiUrl("/api/login"); }, 500);
         return;
       }
       toast({
@@ -149,7 +150,7 @@ export function useDeleteLastSavings() {
 
   return useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.savings.deleteLast.path, {
+      const res = await fetch(apiUrl(api.savings.deleteLast.path), {
         method: api.savings.deleteLast.method,
         credentials: "include",
       });
@@ -170,7 +171,7 @@ export function useDeleteLastSavings() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = apiUrl("/api/login"); }, 500);
         return;
       }
       toast({

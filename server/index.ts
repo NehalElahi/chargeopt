@@ -1,10 +1,24 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+
+const frontendOrigins = process.env.FRONTEND_ORIGIN?.split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+if (frontendOrigins?.length) {
+  app.use(
+    cors({
+      origin: frontendOrigins,
+      credentials: true,
+    }),
+  );
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -94,7 +108,7 @@ app.use((req, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
+      ...(process.platform !== "win32" ? { reusePort: true } : {}),
     },
     () => {
       log(`serving on port ${port}`);

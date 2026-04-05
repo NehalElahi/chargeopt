@@ -3,6 +3,7 @@ import { api } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 import type { OptimizeRequest, DecisionOutcome } from "@shared/schema";
 import { isUnauthorizedError } from "@/lib/auth-utils";
+import { apiUrl } from "@/lib/api-url";
 
 export function useOptimization() {
   const { toast } = useToast();
@@ -11,7 +12,7 @@ export function useOptimization() {
     mutationFn: async (data: OptimizeRequest) => {
       const validated = api.optimize.run.input.parse(data);
 
-      const res = await fetch(api.optimize.run.path, {
+      const res = await fetch(apiUrl(api.optimize.run.path), {
         method: api.optimize.run.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(validated),
@@ -33,7 +34,7 @@ export function useOptimization() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = apiUrl("/api/login"); }, 500);
         return;
       }
       toast({
@@ -59,7 +60,7 @@ export function useConfirmOptimization() {
       recommendation: string;
       explanation: string;
     }) => {
-      const res = await fetch(api.optimize.confirm.path, {
+      const res = await fetch(apiUrl(api.optimize.confirm.path), {
         method: api.optimize.confirm.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -84,7 +85,7 @@ export function useConfirmOptimization() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({ title: "Unauthorized", description: "Logging in again...", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = apiUrl("/api/login"); }, 500);
         return;
       }
       toast({

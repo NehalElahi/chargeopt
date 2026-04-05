@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Zap, Sun, DollarSign, BarChart3, Shield, Leaf } from "lucide-react";
@@ -11,9 +12,9 @@ export default function Landing() {
             <Zap className="w-7 h-7 fill-current" />
             <span style={{ fontFamily: 'var(--font-display)' }}>ChargeOpt</span>
           </div>
-          <a href="/api/login">
+          <Link href="/login">
             <Button data-testid="button-login">Sign In</Button>
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -31,11 +32,11 @@ export default function Landing() {
                   ChargeOpt optimizes your EV charging schedule by analyzing solar production, grid prices, and your battery status to minimize costs and maximize clean energy usage.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <a href="/api/login">
+                  <Link href="/login">
                     <Button size="lg" className="text-lg px-8" data-testid="button-get-started">
                       Get Started
                     </Button>
-                  </a>
+                  </Link>
                 </div>
                 <div className="flex items-center gap-6 text-sm text-muted-foreground">
                   <span className="flex items-center gap-2">

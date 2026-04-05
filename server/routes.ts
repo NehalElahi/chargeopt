@@ -8,10 +8,10 @@ import { solarService } from "./services/solar_service";
 import { gridService } from "./services/grid_service";
 import { DecisionEngine } from "./services/decision_engine";
 import { BatteryState } from "@shared/schema";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
 
 function getUserId(req: any): string {
-  return req.user?.claims?.sub;
+  return req.user?.id;
 }
 
 function createRateLimiter(windowMs: number, maxHits: number): RequestHandler {

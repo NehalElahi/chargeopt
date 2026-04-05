@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function Sidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -62,11 +62,15 @@ export function Sidebar() {
               </p>
               <p className="text-xs text-muted-foreground truncate">{user.email}</p>
             </div>
-            <a href="/api/logout">
-              <Button size="icon" variant="ghost" data-testid="button-logout">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </a>
+            <Button
+              size="icon"
+              variant="ghost"
+              data-testid="button-logout"
+              type="button"
+              onClick={() => logout()}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       )}
