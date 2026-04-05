@@ -1,10 +1,7 @@
-import dns from "node:dns";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
-
-// Supabase direct host often has IPv6; Railway may not reach it (ENETUNREACH). Prefer IPv4.
-dns.setDefaultResultOrder("ipv4first");
+import { resolveDatabaseUrlToIpv4 } from "./resolve-db-url";
 
 const { Pool } = pg;
 
@@ -14,10 +11,8 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Supabase requires TLS from external hosts (e.g. Railway). `sslmode=require` in the URL
-// is not always enough for node-pg; enabling ssl here matches common Supabase + Node setups.
-const connectionString = process.env.DATABASE_URL;
-const useSsl = /supabase\.co/i.test(connectionString);
+const connectionString = resolveDatabaseUrlToIpv4(process.env.DATABASE_URL);
+const useSsl = /supabase\.co/i.test(process.env.DATABASE_URL);
 
 export const pool = new Pool({
   connectionString,

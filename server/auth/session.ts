@@ -1,11 +1,12 @@
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import { resolveDatabaseUrlToIpv4 } from "../resolve-db-url";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    conString: resolveDatabaseUrlToIpv4(process.env.DATABASE_URL!),
     createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
