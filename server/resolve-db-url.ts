@@ -1,26 +1,35 @@
 import dns from "node:dns";
+import type { PoolConfig } from "pg";
 import parse from "pg-connection-string";
 
 dns.setDefaultResultOrder("ipv4first");
 
 /**
- * Railway often cannot reach Supabase over IPv6 (ENETUNREACH). Resolve the DB
- * hostname to an IPv4 address so `pg` connects by IP. TLS still works with
- * `rejectUnauthorized: false` for Supabase (see db.ts).
+ * Railway often cannot reach Supabase over IPv6 (ENETUNREACH). Build a pg Pool
+ * config with host set to an IPv4 literal so node-pg never opens IPv6 sockets.
+ * connect-pg-simple should use the same Pool (see session.ts).
  */
-export function resolveDatabaseUrlToIpv4(url: string): string {
-  if (!url || !/supabase/i.test(url)) {
-    return url;
+export function poolConfigFromDatabaseUrl(url: string): PoolConfig {
+  if (!url) {
+    throw new Error("DATABASE_URL is missing");
+  }
+  if (!/supabase/i.test(url)) {
+    return { connectionString: url };
   }
   try {
-    const cfg = parse(url);
+    const cfg = parse.parseIntoClientConfig(url);
     const host = cfg.host;
-    if (!host) return url;
+    if (!host || typeof host !== "string") {
+      return { connectionString: url };
+    }
     const result = dns.lookupSync(host, { family: 4 });
-    const ip = typeof result === "string" ? result : result.address;
-    // Replace hostname only (first occurrence is the host in standard URIs).
-    return url.replace(host, ip);
+    const ipv4 = typeof result === "string" ? result : result.address;
+    return {
+      ...cfg,
+      host: ipv4,
+      ssl: { rejectUnauthorized: false },
+    };
   } catch {
-    return url;
+    return { connectionString: url };
   }
 }
