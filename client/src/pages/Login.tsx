@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
+  const [, setLocation] = useLocation();
   const { login, register, isLoggingIn, isRegistering } = useAuth();
   const { toast } = useToast();
   const [signInEmail, setSignInEmail] = useState("");
@@ -23,6 +24,7 @@ export default function Login() {
     e.preventDefault();
     try {
       await login({ email: signInEmail, password: signInPassword });
+      setLocation("/");
     } catch (err) {
       toast({
         title: "Sign in failed",
@@ -41,6 +43,7 @@ export default function Login() {
         firstName: regFirst || undefined,
         lastName: regLast || undefined,
       });
+      setLocation("/");
     } catch (err) {
       toast({
         title: "Could not create account",
