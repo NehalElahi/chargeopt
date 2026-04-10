@@ -43,10 +43,16 @@ async function runBackendTest(name?: string) {
 
 async function runApiTest(path: string, assert: (json: any) => boolean, description: string) {
   const t0 = performance.now();
-  const res = await fetch(path);
+  const base = import.meta.env.VITE_API_BASE || "";
+  const url = base ? `${base}${path}` : path;
+  const res = await fetch(url);
   const elapsedMs = performance.now() - t0;
   if (!res.ok) {
     return { passed: false, detail: `${description} (status ${res.status})`, elapsedMs };
+  }
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return { passed: false, detail: `${description} (non-JSON response)`, elapsedMs };
   }
   const json = await res.json();
   const passed = assert(json);
