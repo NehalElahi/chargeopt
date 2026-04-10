@@ -17,8 +17,9 @@ export class DecisionEngine {
     this.exportAllowed = exportAllowed;
   }
 
-  private futurePrices(prices: number[], start: number): number[] {
-    return start < prices.length ? prices.slice(start) : [];
+  private futurePrices(prices: number[], startExclusive: number): number[] {
+    const idx = startExclusive + 1;
+    return idx < prices.length ? prices.slice(idx) : [];
   }
 
   public plan(
@@ -53,6 +54,24 @@ export class DecisionEngine {
     // We modify local copies of battery state to track simulation
     const currentEvSoc = { ...evBattery };
     const currentHomeSoc = homeBattery ? { ...homeBattery } : undefined;
+
+    // --- Pre-plan grid charging on the cheapest hours (Fix #2) ---
+    const solarUsable = solarPoints.slice(0, horizon).map(p =>
+      Math.min(p.energy_kwh, currentEvSoc.max_charge_kw)
+    );
+    const expectedSolar = solarUsable.reduce((a, b) => a + b, 0);
+    let remainingForGridPlan = Math.max(0, evNeeded - expectedSolar);
+
+    const hourOrderByPrice = [...Array(horizon).keys()].sort(
+      (a, b) => priceList[a] - priceList[b]
+    );
+    const plannedGrid: number[] = Array(horizon).fill(0);
+    for (const h of hourOrderByPrice) {
+      if (remainingForGridPlan <= 0) break;
+      const alloc = Math.min(remainingForGridPlan, currentEvSoc.max_charge_kw);
+      plannedGrid[h] = alloc;
+      remainingForGridPlan -= alloc;
+    }
 
     for (let h = 0; h < horizon; h++) {
       const priceIndex = Math.min(h, pricePoints.length - 1);
@@ -137,10 +156,15 @@ export class DecisionEngine {
         
         const futurePricesList = this.futurePrices(priceList, h);
         const cheapestFuture = futurePricesList.length > 0 ? Math.min(...futurePricesList) : price;
-        const shouldChargeNow = price <= cheapestFuture + 0.01 || hoursLeft < requiredHoursMin;
+        const planned = plannedGrid[h] || 0;
+        const shouldChargeNow = planned > 0 || hoursLeft < requiredHoursMin;
 
         if (shouldChargeNow) {
-          gridToEv = Math.min(evNeeded, currentEvSoc.max_charge_kw);
+          const plannedAmount = Math.min(planned, evNeeded, currentEvSoc.max_charge_kw);
+          const emergencyAmount =
+            hoursLeft < requiredHoursMin ? Math.min(evNeeded, currentEvSoc.max_charge_kw) : 0;
+          gridToEv = Math.max(plannedAmount, emergencyAmount);
+
           currentEvSoc.soc_kwh += gridToEv;
           evNeeded -= gridToEv;
           const cost = gridToEv * price;
@@ -165,11 +189,7 @@ export class DecisionEngine {
         note: `Price window: $${price.toFixed(2)}/kWh`
       });
 
-      if (evNeeded <= 0 && h >= horizon - 1) {
-        // Continue simulation if we have battery strategies? 
-        // Python code breaks here:
-        if (evNeeded <= 0) break;
-      }
+      if (evNeeded <= 0) break; // Fix #1: stop immediately once target met
     }
 
     const recommendation = evNeeded > 0 ? "wait" : "charge_optimized";

@@ -1,7 +1,10 @@
 import { GridRate, PriceForecast, PricePoint } from "@shared/schema";
+import { iesoClient } from "./ieso_client";
 
 export class GridService {
   private static DEFAULT_GRID_RATE = 0.22;
+  private cache: { forecast: PriceForecast; fetchedAt: number } | null = null;
+  private static CACHE_MS = 10 * 60 * 1000; // 10 minutes
 
   async getRate(latitude: number, longitude: number): Promise<GridRate> {
     // Mock implementation fallback
@@ -16,8 +19,23 @@ export class GridService {
     longitude: number,
     horizonHours: number = 24
   ): Promise<PriceForecast> {
+    // Use cached forecast when fresh
+    if (this.cache && Date.now() - this.cache.fetchedAt < GridService.CACHE_MS) {
+      return this.cache.forecast;
+    }
+
+    try {
+      const forecast = await iesoClient.fetchDayAhead(horizonHours);
+      this.cache = { forecast, fetchedAt: Date.now() };
+      return forecast;
+    } catch (err) {
+      console.error("IESO price fetch failed, falling back to static curve:", err);
+      return this.syntheticFallback(horizonHours);
+    }
+  }
+
+  private syntheticFallback(horizonHours: number): PriceForecast {
     const points: PricePoint[] = [];
-    
     for (let h = 0; h < horizonHours; h++) {
       const hourOfDay = h % 24;
       let price: number;
@@ -38,10 +56,9 @@ export class GridService {
         hour: h,
         price_per_kwh: price,
         label,
-        currency: "USD"
+        currency: "CAD"
       });
     }
-
     return { points };
   }
 }
