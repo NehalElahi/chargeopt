@@ -3,9 +3,7 @@ import {
   SolarForecastSeries, 
   BatteryState, 
   PlanStep, 
-  DecisionOutcome, 
-  PricePoint,
-  SolarPoint
+  DecisionOutcome
 } from "@shared/schema";
 
 export class DecisionEngine {
@@ -37,7 +35,6 @@ export class DecisionEngine {
 
     const evTargetKwh = evBattery.capacity_kwh * targetSoc;
     let evNeeded = Math.max(0.0, evTargetKwh - evBattery.soc_kwh);
-    const evStartNeeded = evNeeded;
 
     let netCost = 0.0;
     let totalGrid = 0.0;
@@ -157,7 +154,10 @@ export class DecisionEngine {
         const futurePricesList = this.futurePrices(priceList, h);
         const cheapestFuture = futurePricesList.length > 0 ? Math.min(...futurePricesList) : price;
         const planned = plannedGrid[h] || 0;
-        const shouldChargeNow = planned > 0 || hoursLeft < requiredHoursMin;
+        const shouldChargeNow =
+          planned > 0 ||
+          hoursLeft < requiredHoursMin ||
+          price <= cheapestFuture + 0.01;
 
         if (shouldChargeNow) {
           const plannedAmount = Math.min(planned, evNeeded, currentEvSoc.max_charge_kw);
