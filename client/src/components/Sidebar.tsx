@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Settings, Zap, DollarSign, LogOut } from "lucide-react";
+import { LayoutDashboard, Settings, Zap, DollarSign, LogOut, FlaskConical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ export function Sidebar() {
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/savings", label: "Savings", icon: DollarSign },
+    { href: "/tests", label: "Tests", icon: FlaskConical },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
@@ -84,6 +85,7 @@ export function MobileNav() {
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/savings", label: "Savings", icon: DollarSign },
+    { href: "/tests", label: "Tests", icon: FlaskConical },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

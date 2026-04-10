@@ -12,6 +12,7 @@ import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
+import Tests from "@/pages/Tests";
 
 function AuthenticatedApp() {
   return (
@@ -22,6 +23,7 @@ function AuthenticatedApp() {
           <Route path="/" component={Dashboard} />
           <Route path="/savings" component={Savings} />
           <Route path="/settings" component={Settings} />
+          <Route path="/tests" component={Tests} />
           <Route component={NotFound} />
         </Switch>
       </main>

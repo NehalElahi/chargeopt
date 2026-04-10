@@ -9,6 +9,7 @@ import { gridService } from "./services/grid_service";
 import { DecisionEngine } from "./services/decision_engine";
 import { BatteryState } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./auth";
+import type { PriceForecast, SolarForecastSeries } from "@shared/schema";
 
 function getUserId(req: any): string {
   return req.user?.id;
@@ -268,5 +269,154 @@ export async function registerRoutes(
     res.json({ success });
   });
 
+  // === Testing Endpoint (internal) ===
+  app.post("/api/tests/run", async (req, res) => {
+    const requestedName: string | undefined = req.body?.name;
+    const tests = buildDecisionEngineTests();
+    const selected = requestedName
+      ? tests.filter((t) => t.name === requestedName)
+      : tests;
+
+    const results = [];
+    const started = Date.now();
+
+    for (const test of selected) {
+      const t0 = Date.now();
+      try {
+        const passed = await test.run();
+        results.push({
+          name: test.name,
+          passed,
+          detail: passed ? test.successMessage : test.failMessage,
+          elapsedMs: Date.now() - t0,
+        });
+      } catch (err: any) {
+        results.push({
+          name: test.name,
+          passed: false,
+          detail: err?.message || "Test threw",
+          elapsedMs: Date.now() - t0,
+        });
+      }
+    }
+
+    res.json({
+      allPassed: results.every((r) => r.passed),
+      elapsedMs: Date.now() - started,
+      results,
+    });
+  });
+
   return httpServer;
+}
+
+// ---- Decision Engine fixtures & tests ----
+
+type EngineTest = {
+  name: string;
+  run: () => Promise<boolean>;
+  successMessage: string;
+  failMessage: string;
+};
+
+function buildDecisionEngineTests(): EngineTest[] {
+  const engine = new DecisionEngine(0.08, true);
+
+  const makePriceForecast = (prices: number[]): PriceForecast => ({
+    points: prices.map((p, i) => ({
+      hour: i,
+      price_per_kwh: p,
+      label: "off-peak",
+      currency: "CAD",
+    })),
+  });
+
+  const makeSolarForecast = (values: number[]): SolarForecastSeries => ({
+    points: values.map((v, i) => ({ hour: i, energy_kwh: v })),
+  });
+
+  const baseEv = {
+    capacity_kwh: 20,
+    soc_kwh: 0,
+    max_charge_kw: 7,
+    max_discharge_kw: 0,
+  };
+
+  const homeBattery = {
+    capacity_kwh: 10,
+    soc_kwh: 0,
+    max_charge_kw: 5,
+    max_discharge_kw: 5,
+  };
+
+  return [
+    {
+      name: "Early exit when full",
+      successMessage: "Loop stops as soon as EV is full",
+      failMessage: "Loop kept running after EV full",
+      run: async () => {
+        const pf = makePriceForecast(Array(6).fill(0.12));
+        const sf = makeSolarForecast(Array(6).fill(0));
+        const outcome = engine.plan(new Date(), pf, sf, { ...baseEv }, 0.25, 6);
+        const lastHour = outcome.steps[outcome.steps.length - 1].hour;
+        return outcome.recommendation === "charge_optimized" && lastHour <= 2;
+      },
+    },
+    {
+      name: "Cheapest hours first",
+      successMessage: "Grid charging only in cheapest window",
+      failMessage: "Expensive hours used despite cheaper options",
+      run: async () => {
+        const prices = [0.10, 0.10, 0.10, 0.30, 0.30, 0.30];
+        const pf = makePriceForecast(prices);
+        const sf = makeSolarForecast(Array(6).fill(0));
+        const outcome = engine.plan(new Date(), pf, sf, { ...baseEv }, 0.9, 6);
+        const expensiveUse = outcome.steps
+          .filter((s) => s.grid_price >= 0.3)
+          .reduce((a, b) => a + b.grid_used_kwh, 0);
+        return expensiveUse === 0;
+      },
+    },
+    {
+      name: "Deadline safety fallback",
+      successMessage: "Charges in expensive window when deadline tight",
+      failMessage: "Did not protect deadline with fallback charging",
+      run: async () => {
+        const prices = [0.10, 0.10, 0.30, 0.30];
+        const pf = makePriceForecast(prices);
+        const sf = makeSolarForecast(Array(4).fill(0));
+        const outcome = engine.plan(new Date(), pf, sf, { ...baseEv }, 1.0, 4);
+        const expensiveUse = outcome.steps
+          .filter((s) => s.hour >= 2)
+          .reduce((a, b) => a + b.grid_used_kwh, 0);
+        return expensiveUse > 0;
+      },
+    },
+    {
+      name: "Future prices exclude current",
+      successMessage: "Store solar when future price higher",
+      failMessage: "Solar not stored despite higher future price",
+      run: async () => {
+        const prices = [0.10, 0.40, 0.40];
+        const pf = makePriceForecast(prices);
+        const sf = makeSolarForecast([5, 0, 0]);
+        const outcome = engine.plan(new Date(), pf, sf, { ...baseEv }, 0.2, 3, { ...homeBattery });
+        const stored = outcome.steps[0].home_soc_kwh ?? 0;
+        return stored > 0;
+      },
+    },
+    {
+      name: "Solar priority over grid",
+      successMessage: "Solar consumed before grid",
+      failMessage: "Grid used while solar available",
+      run: async () => {
+        const prices = [0.12, 0.12, 0.12];
+        const pf = makePriceForecast(prices);
+        const sf = makeSolarForecast([5, 0, 0]);
+        const outcome = engine.plan(new Date(), pf, sf, { ...baseEv }, 0.25, 3);
+        const gridFirstHour = outcome.steps[0].grid_used_kwh;
+        return gridFirstHour === 0;
+      },
+    },
+  ];
 }
