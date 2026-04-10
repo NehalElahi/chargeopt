@@ -30,11 +30,11 @@ export class GridService {
       return forecast;
     } catch (err) {
       console.error("IESO price fetch failed, falling back to static curve:", err);
-      return this.syntheticFallback(horizonHours);
+      return this.getFallbackForecast(horizonHours);
     }
   }
 
-  private syntheticFallback(horizonHours: number): PriceForecast {
+  public getFallbackForecast(horizonHours: number = 24): PriceForecast {
     const points: PricePoint[] = [];
     for (let h = 0; h < horizonHours; h++) {
       const hourOfDay = h % 24;

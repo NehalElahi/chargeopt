@@ -157,9 +157,16 @@ export async function registerRoutes(
   });
 
   app.get(api.forecast.prices.path, publicLimiter, async (req, res) => {
-    const { lat, lon } = api.forecast.prices.input.parse(req.query);
-    const forecast = await gridService.getPriceForecast(lat, lon);
-    res.json(forecast);
+    try {
+      const { lat, lon } = api.forecast.prices.input.parse(req.query);
+      const forecast = await gridService.getPriceForecast(lat, lon);
+      res.json(forecast);
+    } catch (err) {
+      console.error("Price forecast error:", err);
+      // Hard fallback to synthetic TOU curve so clients always get JSON
+      const forecast = gridService.getFallbackForecast?.(24) ?? { points: [] };
+      res.status(502).json(forecast);
+    }
   });
 
   // === Optimization Route (auth-protected) ===
@@ -270,7 +277,7 @@ export async function registerRoutes(
   });
 
   // === Testing Endpoint (internal) ===
-  app.post("/api/tests/run", async (req, res) => {
+  const handleTestsRun = async (req: any, res: any) => {
     const requestedName: string | undefined = req.body?.name;
     const tests = buildDecisionEngineTests();
     const selected = requestedName
@@ -305,7 +312,10 @@ export async function registerRoutes(
       elapsedMs: Date.now() - started,
       results,
     });
-  });
+  };
+
+  app.post("/api/tests/run", handleTestsRun);
+  app.get("/api/tests/run", handleTestsRun); // allow GET to avoid 405s from environments that strip POST
 
   return httpServer;
 }
