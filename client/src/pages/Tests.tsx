@@ -43,7 +43,11 @@ async function runBackendTest(name?: string) {
 
 async function runApiTest(path: string, assert: (json: any) => boolean, description: string) {
   const t0 = performance.now();
-  const base = import.meta.env.VITE_API_BASE || "";
+  const inferredBase =
+    typeof window !== "undefined" && window.location.origin.includes("5173")
+      ? "http://localhost:5000"
+      : window.location.origin;
+  const base = import.meta.env.VITE_API_BASE || inferredBase || "";
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url);
   const elapsedMs = performance.now() - t0;
